@@ -1,0 +1,8 @@
+streamlit
+openai
+psycopg2-binary
+pgvector
+sentence-transformers
+python-dotenv
+colorama
+tqdm
