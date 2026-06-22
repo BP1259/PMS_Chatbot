@@ -1,8 +1,5 @@
-streamlit
-openai
-psycopg2-binary
-pgvector
-sentence-transformers
-python-dotenv
-colorama
-tqdm
+streamlit==1.58.0
+openai==2.43.0
+psycopg2-binary==2.9.12
+pgvector==0.4.2
+python-dotenv==1.2.2

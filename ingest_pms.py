@@ -1,18 +1,22 @@
 """
-ingest_pms.py — Parse BOTH BP PMS guides → embed → store in one Supabase table
+ingest_pms.py — Parse ALL BP PMS guides → embed → store in one Supabase table
 
 Single table: pms_guide_chunks
-Two sources:  doc_source = 'employee'     → BP_PMS_Employee_Guideline.docx
+Four sources: doc_source = 'employee'     → BP_PMS_Employee_Guideline.docx
               doc_source = 'line_manager' → Line_Manager_Guideline_Tutorial.docx
+              doc_source = 'guidelines'   → Guidelines_Annual_Appraisal_2025-2026.docx
+              doc_source = 'company_info' → About_Bachaa_Party.docx
 
-Each doc's hash is tracked separately, so re-ingesting one never wipes the other.
+Each doc's hash is tracked separately, so re-ingesting one never wipes the others.
 
 Usage:
-    python ingest_pms.py                      # ingest both if changed
-    python ingest_pms.py --force              # force re-ingest both
+    python ingest_pms.py                      # ingest all four if changed
+    python ingest_pms.py --force              # force re-ingest all four
     python ingest_pms.py --employee-only      # only employee doc
     python ingest_pms.py --lm-only            # only line manager doc
-    python ingest_pms.py path/emp.docx path/lm.docx   # custom paths
+    python ingest_pms.py --guidelines-only    # only annual appraisal guidelines
+    python ingest_pms.py --company-only       # only company info doc
+    python ingest_pms.py path/emp.docx path/lm.docx   # custom paths (employee + LM only)
 """
 
 from __future__ import annotations
@@ -26,13 +30,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.insert(0, os.path.dirname(__file__))
-from pms_parser import build_pms_chunks, build_lm_chunks, PMSChunk
+from pms_parser import (
+    build_pms_chunks, build_lm_chunks,
+    build_guidelines_chunks, build_company_info_chunks,
+    PMSChunk,
+)
 
 # ── Config ─────────────────────────────────────────────────────────────────
-DEFAULT_EMPLOYEE_DOCX = "./data/BP_PMS_Employee_Guideline.docx"
-DEFAULT_LM_DOCX       = "./data/Line_Manager_Guideline___Tutorial_for_the_Appraisal_System.docx"
-EMBED_MODEL           = "all-MiniLM-L6-v2"
-BATCH_SIZE            = 20
+DEFAULT_EMPLOYEE_DOCX   = "./data/BP_PMS_Employee_Guideline.docx"
+DEFAULT_LM_DOCX         = "./data/Line_Manager_Guideline___Tutorial_for_the_Appraisal_System.docx"
+DEFAULT_GUIDELINES_DOCX = "./data/Guidelines_Annual_Appraisal_2025-2026.docx"
+DEFAULT_COMPANY_DOCX    = "./data/About_Bachaa_Party.docx"
+EMBED_MODEL             = "all-MiniLM-L6-v2"
+BATCH_SIZE              = 20
 # ───────────────────────────────────────────────────────────────────────────
 
 
@@ -239,9 +249,22 @@ def _ingest_one(conn, docx_path: str, doc_source: str,
 
 
 def run_ingest(employee_docx: str, lm_docx: str,
+               guidelines_docx: str = DEFAULT_GUIDELINES_DOCX,
+               company_docx: str = DEFAULT_COMPANY_DOCX,
                force: bool = False,
                employee_only: bool = False,
-               lm_only: bool = False):
+               lm_only: bool = False,
+               guidelines_only: bool = False,
+               company_only: bool = False):
+
+    # If any "*_only" flag is set, every other source is skipped.
+    only_flags = [employee_only, lm_only, guidelines_only, company_only]
+    any_only   = any(only_flags)
+
+    do_employee   = employee_only   or not any_only
+    do_lm         = lm_only         or not any_only
+    do_guidelines = guidelines_only or not any_only
+    do_company    = company_only    or not any_only
 
     db_url = get_db_url()
     conn   = connect(db_url)
@@ -255,10 +278,12 @@ def run_ingest(employee_docx: str, lm_docx: str,
     from sentence_transformers import SentenceTransformer
     model = SentenceTransformer(EMBED_MODEL)
 
-    emp_count = 0
-    lm_count  = 0
+    emp_count    = 0
+    lm_count     = 0
+    guide_count  = 0
+    company_count = 0
 
-    if not lm_only:
+    if do_employee:
         print(f"\n── Employee Guide ──────────────────────────────────")
         print(f"   {os.path.abspath(employee_docx)}")
         emp_count = _ingest_one(
@@ -266,7 +291,7 @@ def run_ingest(employee_docx: str, lm_docx: str,
             build_pms_chunks, model, force,
         )
 
-    if not employee_only:
+    if do_lm:
         print(f"\n── Line Manager Guide ──────────────────────────────")
         print(f"   {os.path.abspath(lm_docx)}")
         lm_count = _ingest_one(
@@ -274,39 +299,75 @@ def run_ingest(employee_docx: str, lm_docx: str,
             build_lm_chunks, model, force,
         )
 
+    if do_guidelines:
+        print(f"\n── Annual Appraisal Guidelines ─────────────────────")
+        print(f"   {os.path.abspath(guidelines_docx)}")
+        guide_count = _ingest_one(
+            conn, guidelines_docx, "guidelines",
+            build_guidelines_chunks, model, force,
+        )
+
+    if do_company:
+        print(f"\n── About Bachaa Party (company info) ───────────────")
+        print(f"   {os.path.abspath(company_docx)}")
+        company_count = _ingest_one(
+            conn, company_docx, "company_info",
+            build_company_info_chunks, model, force,
+        )
+
     conn.close()
 
     print("\n" + "=" * 55)
     if emp_count > 0:
-        print(f"  ✅ Employee Guide   : {emp_count} chunks stored")
+        print(f"  ✅ Employee Guide        : {emp_count} chunks stored")
     elif emp_count == -1:
-        print(f"  ✅ Employee Guide   : already up to date")
+        print(f"  ✅ Employee Guide        : already up to date")
 
     if lm_count > 0:
-        print(f"  ✅ Line Manager Guide: {lm_count} chunks stored")
+        print(f"  ✅ Line Manager Guide    : {lm_count} chunks stored")
     elif lm_count == -1:
-        print(f"  ✅ Line Manager Guide: already up to date")
+        print(f"  ✅ Line Manager Guide    : already up to date")
+
+    if guide_count > 0:
+        print(f"  ✅ Annual Guidelines     : {guide_count} chunks stored")
+    elif guide_count == -1:
+        print(f"  ✅ Annual Guidelines     : already up to date")
+
+    if company_count > 0:
+        print(f"  ✅ Company Info          : {company_count} chunks stored")
+    elif company_count == -1:
+        print(f"  ✅ Company Info          : already up to date")
 
     print("\n🎉  Done! Deploy the updated app.py and rag_engine.py\n")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(
-        description="Ingest BP PMS guides (employee + line manager) into Supabase"
+        description="Ingest BP PMS guides (employee, line manager, guidelines, company info) into Supabase"
     )
     ap.add_argument("employee_docx", nargs="?", default=DEFAULT_EMPLOYEE_DOCX,
                     help="Path to employee guideline docx")
     ap.add_argument("lm_docx", nargs="?", default=DEFAULT_LM_DOCX,
                     help="Path to line manager guideline docx")
-    ap.add_argument("--force",         action="store_true", help="Force re-ingest both docs")
-    ap.add_argument("--employee-only", action="store_true", help="Only ingest employee doc")
-    ap.add_argument("--lm-only",       action="store_true", help="Only ingest line manager doc")
+    ap.add_argument("--guidelines-docx", default=DEFAULT_GUIDELINES_DOCX,
+                    help="Path to Annual Appraisal Guidelines docx")
+    ap.add_argument("--company-docx", default=DEFAULT_COMPANY_DOCX,
+                    help="Path to About Bachaa Party docx")
+    ap.add_argument("--force",            action="store_true", help="Force re-ingest all docs")
+    ap.add_argument("--employee-only",    action="store_true", help="Only ingest employee doc")
+    ap.add_argument("--lm-only",          action="store_true", help="Only ingest line manager doc")
+    ap.add_argument("--guidelines-only",  action="store_true", help="Only ingest annual appraisal guidelines")
+    ap.add_argument("--company-only",     action="store_true", help="Only ingest company info doc")
     args = ap.parse_args()
 
     run_ingest(
         employee_docx=args.employee_docx,
         lm_docx=args.lm_docx,
+        guidelines_docx=args.guidelines_docx,
+        company_docx=args.company_docx,
         force=args.force,
         employee_only=args.employee_only,
         lm_only=args.lm_only,
+        guidelines_only=args.guidelines_only,
+        company_only=args.company_only,
     )

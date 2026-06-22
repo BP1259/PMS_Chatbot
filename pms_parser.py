@@ -764,3 +764,246 @@ def build_all_chunks(employee_docx: str, lm_docx: str) -> list[PMSChunk]:
     total = emp + lm
     print(f"\n  Grand total chunks     : {len(total)}")
     return total
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ANNUAL APPRAISAL GUIDELINES (2025-2026) — policy/reference doc, no images
+# doc_source = 'guidelines'
+# Source: Guidelines_Annual_Appraisal_2025-2026.docx (10 numbered sections,
+# no tables, no inline images). Content is reproduced in full below, split
+# into one chunk per logical sub-topic so each chunk stays focused, but the
+# RAG pipeline always sends ALL guideline chunks together as one combined
+# context (same "full guide, every call" pattern as the employee/LM guides
+# in build_pms_chunks / build_lm_chunks) — so partial vs. full questions
+# both just work without any separate retrieval logic.
+# ══════════════════════════════════════════════════════════════════════════
+
+def build_guidelines_chunks(docx_path: str | None = None) -> list[PMSChunk]:
+    """
+    Build chunks for the Annual Appraisal Guidelines 2025-2026.
+    doc_source = 'guidelines'
+
+    docx_path is accepted for interface consistency with build_pms_chunks /
+    build_lm_chunks (and so ingest_pms.py's hash-tracking can watch the file
+    for changes), but the content here is authored directly rather than
+    parsed from the docx at runtime, since the source document is plain
+    text with no images or tables to extract.
+    """
+    chunks: list[PMSChunk] = []
+
+    def add(chunk_id: str, section: str, title: str, content: str, order: int):
+        chunks.append(PMSChunk(
+            chunk_id=chunk_id, content=content.strip(),
+            section=section, step_number=order, step_title=title,
+            has_image=False, image_filename="", image_data="",
+            chunk_type="guideline_section", doc_source="guidelines",
+        ))
+
+    add(
+        "guide_01_goals_self_eval", "Annual Goals", "Annual Goals — Self-Evaluation", """
+Section 1: Annual Goals — Self-Evaluation
+
+Against each goal, employees will evaluate themselves and provide details of their scoring:
+- Review your annual goals set for the period July 2025 – June 2026.
+- Evaluate your performance against each goal, considering achievements, challenges, and learnings.
+- Keep in mind the entire year's progress, not just recent progress.
+- Provide concrete examples, projects, and accomplishments to support your score.
+- Assign a percentage score of 0–100% to rate your performance against each goal.
+- Provide concise comments summarizing your accomplishments, challenges, and lessons learned for each goal.
+""", 1)
+
+    add(
+        "guide_02_goals_grace_marks", "Annual Goals", "Scoring Above 100% — Grace Marks (Goals)", """
+Section 1 (continued): Scoring Above 100% on Annual Goals
+
+A score above 100% is only applicable in exceptional cases where performance has clearly exceeded the
+set target, supported by strong facts, figures, and evidence. In such cases, grace marks of up to 50%
+may be awarded, bringing the maximum possible score to 150%. Detailed comments and justification are
+mandatory for any score above 100%, and HR will request a formal explanation accordingly.
+""", 2)
+
+    add(
+        "guide_03_cotic_self_eval", "COTIC Values", "Bachaa Party Values (COTIC) — Self-Evaluation", """
+Section 2: Bachaa Party Values (COTIC) — Self-Evaluation
+
+Against each company value (COTIC), employees will evaluate themselves and assign scores:
+- Assign a percentage score of 0–100% in the score column for each value.
+- Provide details and comments justifying your score for each value.
+""", 3)
+
+    add(
+        "guide_04_cotic_grace_marks", "COTIC Values", "Scoring Above 100% — Grace Marks (COTIC)", """
+Section 2 (continued): Scoring Above 100% on COTIC Values
+
+A score above 100% is only applicable in exceptional cases where an employee has demonstrated clearly
+exceptional alignment with company values, supported by strong facts, figures, and evidence. In such
+cases, grace marks of up to 50% may be awarded, bringing the maximum possible score to 150%. Detailed
+comments and justification are mandatory for any score above 100%, and HR will request a formal
+explanation accordingly.
+""", 4)
+
+    add(
+        "guide_05_overall_score", "Overall Score", "Overall Final Score (Auto-Calculated)", """
+Section 3: Overall Final Score (Auto-Calculated)
+
+The overall score is automatically calculated by the FlowHCM system using a weighted average of 80%
+for Goals and 20% for Values. After completing their self-evaluation, employees will submit the form
+through the FlowHCM Appraisal System to their Line Manager / HOD.
+""", 5)
+
+    add(
+        "guide_06_leadership_eval", "Leadership Evaluation", "Evaluation on Leadership & Team Management", """
+Section 4: Evaluation on Leadership & Team Management
+
+The appraiser should evaluate the Leadership & Team Management competency of Lead / Assistant Manager
+above level staff. The appraiser evaluates the following points where applicable:
+- Ability to translate departmental/functional goals and communicate respective goals to subordinates.
+- Adopt different leadership styles to meet situational requirements.
+- Help the team stay focused on major goals, remain accessible to team members, and motivate them.
+- Demonstrate the ability to bring new strategic concepts.
+- Anticipate issues affecting the department and present workable solutions.
+- Encourage collaboration across functional/departmental boundaries and discourage working in silos.
+- Any other relevant point related to leadership & team management.
+
+Note: this section applies only to Lead / Assistant Manager level staff and above — not to all employees.
+""", 6)
+
+    add(
+        "guide_07_lm_hod_eval", "Manager Evaluation", "Line Manager / HOD Evaluation", """
+Section 5: Line Manager / HOD Evaluation
+
+Line Managers and HODs will assign a percentage score to each employee against each goal and value.
+- If the manager's score differs from the employee's score, the manager must enter detailed comments
+  explaining the difference.
+- Ensure transparent scoring and consider the entire year's performance, not just recent performance.
+- Provide concrete, work-related examples for easy understanding and learning of staff.
+- The FlowHCM system provides the weighted average score based on 80% Goals and 20% Values.
+""", 7)
+
+    add(
+        "guide_08_ace_dialogue", "Appraisal Dialogue", "Appraisal Dialogue (ACE)", """
+Section 6: Appraisal Dialogue (ACE)
+
+After completing the evaluation in FlowHCM, the Line Manager / HOD must conduct an appraisal discussion
+with each team member. This is a critical activity. The following three points must be covered:
+
+- Appreciation: Acknowledge and appreciate the employee's strengths and good performance.
+- Coach & Counsel: Identify improvement areas, counsel, and coach employees so they can improve. Be as
+  objective as possible — use concrete, work-related examples.
+- Encourage: End the discussion with encouragement, motivating the employee to work hard and improve
+  on the discussed points.
+
+ACE stands for Appreciation, Coach & Counsel, Encourage.
+""", 8)
+
+    add(
+        "guide_09_next_year_goals", "Next Year Goals", "Next Year Goals Discussion", """
+Section 7: Next Year Goals Discussion
+
+During the appraisal meeting, the Line Manager will collaborate with staff to set SMART Goals for
+FY 2026–2027 as per the new goals guidelines. The Line Manager will:
+- Ensure staff understand their role in achieving department and company goals.
+- Encourage staff to take ownership of their goals and development.
+- Provide resources and support to help staff achieve their goals.
+""", 9)
+
+    add(
+        "guide_10_unachieved_goals", "Next Year Goals", "Handling Unachieved Goals From Last Year", """
+Section 7 (continued): If Last Year's Goals Were Not Achieved
+
+If last year's goals were not achieved, the Line Manager will:
+- Include those goals in the next year's plan with revised targets, deadlines, and weightage if applicable.
+- Discuss and document the reasons for non-achievement.
+""", 10)
+
+    add(
+        "guide_11_submission", "Submission", "Submission & Acknowledgement", """
+Section 8: Submission & Acknowledgement
+
+Following the appraisal and goals discussion:
+- All evaluations are submitted digitally through the FlowHCM Appraisal System. No Excel sheets or
+  physical appraisal forms are required.
+- Each department will submit a hard copy of the Annual Appraisal Acknowledgement Sheet — with the
+  signature of each individual — to the HR Department.
+""", 11)
+
+    add(
+        "guide_12_eligibility", "Eligibility", "Eligibility Criteria", """
+Section 9: Eligibility Criteria
+
+Employees will be eligible for the appraisal cycle if they:
+- Are permanent employees; and
+- Have completed a minimum of three (3) months of service as of 30 June 2026
+  (i.e., joined on or before 1 April 2026).
+""", 12)
+
+    add(
+        "guide_13_timeline", "Timeline", "Appraisal Timeline", """
+Section 10: Appraisal Timeline
+
+- Self-Evaluation Phase: 15th June 2026 – 30th June 2026
+- Line Manager Evaluation Phase: 1st July 2026 – 25th July 2026
+- Management Evaluation Phase: 25th July – 31 August 2026
+""", 13)
+
+    print(f"  Guideline chunks       : {len(chunks)}")
+    return chunks
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ABOUT BACHAA PARTY — general company info, no images
+# doc_source = 'company_info'
+# Source: About_Bachaa_Party.docx
+# ══════════════════════════════════════════════════════════════════════════
+
+def build_company_info_chunks(docx_path: str | None = None) -> list[PMSChunk]:
+    """
+    Build chunks for the 'About Bachaa Party' company overview doc.
+    doc_source = 'company_info'
+
+    docx_path is accepted for interface consistency / hash-tracking, but
+    content is authored directly (short doc, no images or tables).
+    """
+    chunks: list[PMSChunk] = []
+
+    def add(chunk_id: str, title: str, content: str, order: int):
+        chunks.append(PMSChunk(
+            chunk_id=chunk_id, content=content.strip(),
+            section="Company Info", step_number=order, step_title=title,
+            has_image=False, image_filename="", image_data="",
+            chunk_type="company_info", doc_source="company_info",
+        ))
+
+    add(
+        "company_01_overview", "About Bachaa Party — Overview", """
+About Bachaa Party
+
+Bachaa Party is Pakistan's first and biggest kids' retail store, founded by Ahmer Javed and
+Omair Javed in Karachi in 2016. The brand is a one-stop destination for everything children need,
+catering to kids aged 0–14 years.
+""", 1)
+
+    add(
+        "company_02_products_footprint", "Product Range & Store Footprint", """
+Bachaa Party — Product Range & Store Footprint
+
+Product Range:
+- Kids apparel (boys & girls)
+- Kids shoes
+- Toys and educational/creative toys
+- Accessories
+- Infant essentials and baby care
+- Books and stationery
+- Party supplies and crockery
+- School supplies
+- Sports accessories
+
+Store Footprint:
+Bachaa Party has grown from a single Karachi flagship store into a nationwide retail network with
+13+ interactive outlets across Pakistan, including locations in Karachi, Lahore, Islamabad,
+Rawalpindi, Hyderabad, Multan, and Gujranwala. The brand also operates a national e-commerce
+platform at bachaaparty.com.
+""", 2)
+
+    print(f"  Company info chunks    : {len(chunks)}")
+    return chunks
